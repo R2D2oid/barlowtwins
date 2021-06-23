@@ -44,6 +44,8 @@ parser.add_argument('--print-freq', default=100, type=int, metavar='N',
                     help='print frequency')
 parser.add_argument('--checkpoint-dir', default='./checkpoint/', type=Path,
                     metavar='DIR', help='path to checkpoint directory')
+parser.add_argument('--distribute', action='store_true',
+                    help='runs torch in distributed mode')
 
 
 def main():
@@ -67,14 +69,18 @@ def main():
         args.rank = 0
         args.dist_url = 'tcp://localhost:58472'
         args.world_size = args.ngpus_per_node
-    torch.multiprocessing.spawn(main_worker, (args,), args.ngpus_per_node)
 
+        if args.distribute:
+            torch.multiprocessing.spawn(main_worker, (args,), args.ngpus_per_node)
+        else:
+            main_worker(0, args)
 
 def main_worker(gpu, args):
-    args.rank += gpu
-    torch.distributed.init_process_group(
-        backend='nccl', init_method=args.dist_url,
-        world_size=args.world_size, rank=args.rank)
+    if args.distribute:
+        args.rank += gpu
+        torch.distributed.init_process_group(
+           backend='nccl', init_method=args.dist_url,
+           world_size=args.world_size, rank=args.rank)
 
     if args.rank == 0:
         args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -86,7 +92,8 @@ def main_worker(gpu, args):
     torch.backends.cudnn.benchmark = True
 
     model = BarlowTwins(args).cuda(gpu)
-    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    if args.distribute:
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     param_weights = []
     param_biases = []
     for param in model.parameters():
@@ -95,7 +102,8 @@ def main_worker(gpu, args):
         else:
             param_weights.append(param)
     parameters = [{'params': param_weights}, {'params': param_biases}]
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
+    if args.distribute:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
     optimizer = LARS(parameters, lr=0, weight_decay=args.weight_decay,
                      weight_decay_filter=exclude_bias_and_norm,
                      lars_adaptation_filter=exclude_bias_and_norm)
@@ -111,7 +119,9 @@ def main_worker(gpu, args):
         start_epoch = 0
 
     dataset = torchvision.datasets.ImageFolder(args.data / 'train', Transform())
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset)
+    sampler = None
+    if args.distribute:
+        sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     assert args.batch_size % args.world_size == 0
     per_device_batch_size = args.batch_size // args.world_size
     loader = torch.utils.data.DataLoader(
@@ -121,7 +131,9 @@ def main_worker(gpu, args):
     start_time = time.time()
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(start_epoch, args.epochs):
-        sampler.set_epoch(epoch)
+        if args.distribute:
+            sampler.set_epoch(epoch)
+
         for step, ((y1, y2), _) in enumerate(loader, start=epoch * len(loader)):
             y1 = y1.cuda(gpu, non_blocking=True)
             y2 = y2.cuda(gpu, non_blocking=True)
@@ -214,7 +226,8 @@ class BarlowTwins(nn.Module):
 
         # sum the cross-correlation matrix between all gpus
         c.div_(self.args.batch_size)
-        torch.distributed.all_reduce(c)
+        if self.args.distribute:
+            torch.distributed.all_reduce(c)
 
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()

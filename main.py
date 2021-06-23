@@ -148,7 +148,7 @@ def main_worker(gpu, args):
             torch.save(state, args.checkpoint_dir / 'checkpoint.pth')
     if args.rank == 0:
         # save final model
-        torch.save(model.module.backbone.state_dict(),
+        torch.save(model.backbone.state_dict(),
                    args.checkpoint_dir / 'resnet50.pth')
 
 
@@ -188,7 +188,8 @@ class BarlowTwins(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.backbone = torchvision.models.resnet50(zero_init_residual=True)
+        #self.backbone = torchvision.models.resnet50(zero_init_residual=True)
+        self.backbone = torch.hub.load('facebookresearch/barlowtwins:main', 'resnet50')
         self.backbone.fc = nn.Identity()
 
         # projector

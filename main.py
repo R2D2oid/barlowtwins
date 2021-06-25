@@ -20,6 +20,7 @@ from torch import nn, optim
 import torch
 import torchvision
 import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 
 parser = argparse.ArgumentParser(description='Barlow Twins Training')
 parser.add_argument('data', type=Path, metavar='DIR',
@@ -118,7 +119,11 @@ def main_worker(gpu, args):
     else:
         start_epoch = 0
 
-    dataset = torchvision.datasets.ImageFolder(args.data / 'train', Transform())
+    dataset = datasets.CIFAR10(root ='./data', 
+                               train = True, 
+                               download = True, 
+                               transform = Transform_CIFAR10())
+
     sampler = None
     if args.distribute:
         sampler = torch.utils.data.distributed.DistributedSampler(dataset)
@@ -338,6 +343,45 @@ class Transform:
         y2 = self.transform_prime(x)
         return y1, y2
 
+
+class Transform_CIFAR10:
+    def __init__(self):
+        self.transform = transforms.Compose([
+            transforms.RandomResizedCrop(32, interpolation=Image.BICUBIC),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply(
+                [transforms.ColorJitter(brightness=0.4, contrast=0.4,
+                                        saturation=0.2, hue=0.1)],
+                p=0.8
+            ),
+            transforms.RandomGrayscale(p=0.2),
+            GaussianBlur(p=1.0),
+            Solarization(p=0.0),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                                 std=[0.2470, 0.2435, 0.2616])
+
+        ])
+        self.transform_prime = transforms.Compose([
+            transforms.RandomResizedCrop(32, interpolation=Image.BICUBIC),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply(
+                [transforms.ColorJitter(brightness=0.4, contrast=0.4,
+                                        saturation=0.2, hue=0.1)],
+                p=0.8
+            ),
+            transforms.RandomGrayscale(p=0.2),
+            GaussianBlur(p=0.1),
+            Solarization(p=0.2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                                 std=[0.2470, 0.2435, 0.2616])
+        ])
+
+    def __call__(self, x):
+        y1 = self.transform(x)
+        y2 = self.transform_prime(x)
+        return y1, y2
 
 if __name__ == '__main__':
     main()

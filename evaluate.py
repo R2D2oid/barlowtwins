@@ -18,6 +18,7 @@ from torch import nn, optim
 from torchvision import models, datasets, transforms
 import torch
 import torchvision
+from PIL import Image, ImageOps, ImageFilter
 
 parser = argparse.ArgumentParser(description='Evaluate resnet50 features on ImageNet')
 parser.add_argument('data', type=Path, metavar='DIR',
@@ -46,7 +47,8 @@ parser.add_argument('--print-freq', default=100, type=int, metavar='N',
                     help='print frequency')
 parser.add_argument('--checkpoint-dir', default='./checkpoint/lincls/', type=Path,
                     metavar='DIR', help='path to checkpoint directory')
-
+parser.add_argument('--distribute', action='store_true',
+                    help='runs torch in distributed mode')
 
 def main():
     args = parser.parse_args()
@@ -60,7 +62,10 @@ def main():
     args.rank = 0
     args.dist_url = f'tcp://localhost:{random.randrange(49152, 65535)}'
     args.world_size = args.ngpus_per_node
-    torch.multiprocessing.spawn(main_worker, (args,), args.ngpus_per_node)
+    if args.distribute:
+        torch.multiprocessing.spawn(main_worker, (args,), args.ngpus_per_node)
+    else:
+        main_worker(0, args)
 
 
 def main_worker(gpu, args):
@@ -93,7 +98,8 @@ def main_worker(gpu, args):
             classifier_parameters.append(param)
         else:
             model_parameters.append(param)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
+    if args.distribute:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
 
     criterion = nn.CrossEntropyLoss().cuda(gpu)
 
@@ -117,23 +123,29 @@ def main_worker(gpu, args):
         best_acc = argparse.Namespace(top1=0, top5=0)
 
     # Data loading code
-    traindir = args.data / 'train'
-    valdir = args.data / 'val'
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                                     std=[0.2470, 0.2435, 0.2616])
 
-    train_dataset = datasets.ImageFolder(traindir, transforms.Compose([
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ]))
-    val_dataset = datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ]))
+    train_dataset = datasets.CIFAR10(root ='./data', 
+                               train = True, 
+                               download = True, 
+                               transform = transforms.Compose([
+                                    transforms.Resize(32),
+                                    transforms.CenterCrop(32),
+                                    transforms.ToTensor(),
+                                    normalize,
+                                ]))
+
+    # used test set as validation for now. need to adjust this to split train into train/valid
+    val_dataset = datasets.CIFAR10(root ='./data', 
+                           train = False, 
+                           download = True, 
+                           transform = transforms.Compose([
+                            transforms.Resize(32),
+                            transforms.CenterCrop(32),
+                            transforms.ToTensor(),
+                            normalize,
+                        ]))
 
     if args.train_percent in {1, 10}:
         train_dataset.samples = []
@@ -196,7 +208,7 @@ def main_worker(gpu, args):
         # sanity check
         if args.weights == 'freeze':
             reference_state_dict = torch.load(args.pretrained, map_location='cpu')
-            model_state_dict = model.module.state_dict()
+            model_state_dict = model.state_dict()
             for k in reference_state_dict:
                 assert torch.equal(model_state_dict[k].cpu(), reference_state_dict[k]), k
 

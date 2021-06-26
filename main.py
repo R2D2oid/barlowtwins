@@ -49,6 +49,7 @@ parser.add_argument('--distribute', action='store_true',
                     help='runs torch in distributed mode')
 
 
+# python main.py demo_data/ --workers 1 --batch-size 1024 --epochs 1000 --print-freq 100
 def main():
     args = parser.parse_args()
     args.ngpus_per_node = torch.cuda.device_count()

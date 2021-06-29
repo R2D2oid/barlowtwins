@@ -20,7 +20,10 @@ import torch
 import torchvision
 from PIL import Image, ImageOps, ImageFilter
 
-parser = argparse.ArgumentParser(description='Evaluate resnet50 features on ImageNet')
+from dataloader import NoisyCIFAR10
+from main import Transform_CIFAR10, GaussianBlur, Solarization
+
+parser = argparse.ArgumentParser(description='Evaluate resnet50 features on CIFAR10')
 parser.add_argument('data', type=Path, metavar='DIR',
                     help='path to dataset')
 parser.add_argument('pretrained', type=Path, metavar='FILE',
@@ -45,15 +48,15 @@ parser.add_argument('--weight-decay', default=1e-6, type=float, metavar='W',
                     help='weight decay')
 parser.add_argument('--print-freq', default=100, type=int, metavar='N',
                     help='print frequency')
-parser.add_argument('--checkpoint-dir', default='./checkpoint/lincls/', type=Path,
-                    metavar='DIR', help='path to checkpoint directory')
 parser.add_argument('--distribute', action='store_true',
                     help='runs torch in distributed mode')
+parser.add_argument('--checkpoint-dir', default='checkpoint_sym_noise_1/lincls/', type=Path,
+                    metavar='DIR', help='path to checkpoint directory')
+parser.add_argument('--noisy-data-dir', default='checkpoint_sym_noise_1/cifar10_noisy.pkl', type=Path,
+                    metavar='DIR', help='path to noisy dataset pickle file')
 
 def main():
     args = parser.parse_args()
-    if args.train_percent in {1, 10}:
-        args.train_files = urllib.request.urlopen(f'https://raw.githubusercontent.com/google-research/simclr/master/imagenet_subsets/{args.train_percent}percent.txt').readlines()
     args.ngpus_per_node = torch.cuda.device_count()
     if 'SLURM_JOB_ID' in os.environ:
         signal.signal(signal.SIGUSR1, handle_sigusr1)
@@ -126,7 +129,8 @@ def main_worker(gpu, args):
     normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
                                      std=[0.2470, 0.2435, 0.2616])
 
-    full_train_dataset = datasets.CIFAR10(root ='./data', 
+    # loads original CIFAR10 dataset without noise
+    full_train_dataset = datasets.CIFAR10(root = args.data, 
                                train = True, 
                                download = True, 
                                transform = transforms.Compose([
@@ -135,6 +139,14 @@ def main_worker(gpu, args):
                                     transforms.ToTensor(),
                                     normalize,
                                 ]))
+    print(f'Loaded data from {args.data}')
+    print(f'Loaded data from {args.data}', file=stats_file)
+
+    # re-use previously generated noisy CIFAR10 targets (used for training barlow twins)
+    noisy_targets = NoisyCIFAR10.load_(args.noisy_data_dir).targets
+    full_train_dataset.targets = noisy_targets
+    print(f'Loaded noisy targets from {args.noisy_data_dir}')
+    print(f'Loaded noisy targets from {args.noisy_data_dir}', file=stats_file)
 
     if args.train_percent in {1, 10}:
         print(f'Using {args.train_percent}% of the training data')
@@ -265,6 +277,7 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
-
+# python evaluate.py <args.data> <args.pretrained> ...
+# python evaluate.py data checkpoint_sym_noise_1/resnet50.pth --noisy-data-dir checkpoint_sym_noise_1/cifar10_noisy.pkl --checkpoint-dir checkpoint_sym_noise_1/lincls  --lr-classifier 0.3
 if __name__ == '__main__':
     main()

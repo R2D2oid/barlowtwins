@@ -2,10 +2,15 @@ import random
 import numpy as np
 import torchvision.datasets as datasets
 
+import pickle
+
 class NoisyCIFAR10(datasets.CIFAR10):
     def __init__(self, root, train=True, download=False, transform=None, noise_type='sym', noise_rate=0.1):
         super(NoisyCIFAR10, self).__init__(root, train=train, download=download, transform=transform)
         
+        self.noise_rate = noise_rate
+        self.noise_type = noise_type
+
         if noise_rate <= 0:
             return
         
@@ -37,11 +42,24 @@ class NoisyCIFAR10(datasets.CIFAR10):
                     self.targets[idx] = np.random.choice([current_class, (current_class+1)%n_classes], p=[1-noise_rate, noise_rate])
             else:
                 raise ValueError(f'Undefined noise_type: {noise_type}!') 
-                
+
         return
     
-    
+    def dump_(self, path_='checkpoint/noisy_cifar10.pkl'):
+        with open(path_,'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load_(path_):
+        with open(path_, 'rb') as f:
+            return pickle.load(f)
+
 ## Usage
 # from dataloader import NoisyCIFAR10
 # noisy_cifar10_trainset = NoisyCIFAR10(root='./data', train=True, download=True, noise_type = 'sym', noise_rate=0.2)
-    
+
+# save dataset as a pickle for re-use
+# dataset.dump_(path_='checkpoint/cifar10_noisy.pkl')
+
+# re-use existing dataset pickle
+# dataset = NoisyCIFAR10.load_(path_ = 'checkpoint/cifar10_noisy.pkl')

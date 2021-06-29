@@ -97,8 +97,12 @@ This project is under the CC-BY-NC 4.0 license. See [LICENSE](LICENSE) for detai
 # Barlow Twins on Noisy CIFAR10 Dataset (using symmetric and asymmetric noise settings)
 
 ### Noisy Barlow Twins Training
-`python main.py --data data --workers 4 --batch-size 1024 --epochs 1000 --print-freq 100 --noise_type sym --noise_rate 0.1`
+```
+python main.py --data data --workers 4 --batch-size 1024 --epochs 1000 --print-freq 100 --noise_type sym --noise_rate 0.1
+```
 
 ### Evaluation: Linear Classification
-``
+```
+python evaluate.py data checkpoint_backup/resnet50.pth --lr-classifier 0.3
+```
 ``

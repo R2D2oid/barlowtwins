@@ -22,8 +22,10 @@ import torchvision
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
+from dataloader import NoisyCIFAR10
+
 parser = argparse.ArgumentParser(description='Barlow Twins Training')
-parser.add_argument('data', type=Path, metavar='DIR',
+parser.add_argument('--data', type=Path, metavar='DIR',
                     help='path to dataset')
 parser.add_argument('--workers', default=8, type=int, metavar='N',
                     help='number of data loader workers')
@@ -47,9 +49,14 @@ parser.add_argument('--checkpoint-dir', default='./checkpoint/', type=Path,
                     metavar='DIR', help='path to checkpoint directory')
 parser.add_argument('--distribute', action='store_true',
                     help='runs torch in distributed mode')
+parser.add_argument('--noise_rate', default=0.0, type=float,
+                    help='CIFAR10 noise rate')
+parser.add_argument('--noise_type', default='sym', type=str,
+                    help='CIFAR10 noise type; ex: sym, asym')
 
+# python main.py data --workers 1 --batch-size 1024 --epochs 1000 --print-freq 100
+# python main.py --data data --workers 1 --batch-size 1024 --epochs 1000 --print-freq 100 --noise_type sym --noise_rate 0.1
 
-# python main.py demo_data/ --workers 1 --batch-size 1024 --epochs 1000 --print-freq 100
 def main():
     args = parser.parse_args()
     args.ngpus_per_node = torch.cuda.device_count()
@@ -120,11 +127,17 @@ def main_worker(gpu, args):
     else:
         start_epoch = 0
 
-    dataset = datasets.CIFAR10(root ='./data', 
-                               train = True, 
-                               download = True, 
-                               transform = Transform_CIFAR10())
-
+    # dataset = datasets.CIFAR10(root ='./data', train = True, download = True, transform = Transform_CIFAR10())
+    dataset = NoisyCIFAR10(root=args.data, 
+                           train=True, 
+                           download=True, 
+                           noise_type = args.noise_type, 
+                           noise_rate = args.noise_rate, 
+                           transform = Transform_CIFAR10())
+    
+    print(f'Loaded noisy cifar10 dataset with {args.noise_type} noise and noise-rate={args.noise_rate}')    
+    print(f'Loaded noisy cifar10 dataset with {args.noise_type} noise and noise-rate={args.noise_rate}', file=stats_file)
+    
     sampler = None
     if args.distribute:
         sampler = torch.utils.data.distributed.DistributedSampler(dataset)

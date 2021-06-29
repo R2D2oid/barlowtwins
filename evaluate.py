@@ -136,20 +136,20 @@ def main_worker(gpu, args):
                                     normalize,
                                 ]))
 
+    if args.train_percent in {1, 10}:
+        print(f'Using {args.train_percent}% of the training data')
+        indices = list(range(len(full_train_dataset)))
+        random.seed(42)
+        random.shuffle(indices)
+        train_size = int(args.train_percent*full_train_dataset.__len__()/100)
+        full_train_dataset = torch.utils.data.Subset(full_train_dataset, indices[:train_size])
+
     indices = list(range(len(full_train_dataset)))
     random.seed(42)
     random.shuffle(indices)
     train_size = int(0.8*full_train_dataset.__len__())
     train_dataset = torch.utils.data.Subset(full_train_dataset, indices[:train_size])
     val_dataset = torch.utils.data.Subset(full_train_dataset, indices[train_size:])
-
-    if args.train_percent in {1, 10}:
-        train_dataset.samples = []
-        for fname in args.train_files:
-            fname = fname.decode().strip()
-            cls = fname.split('_')[0]
-            train_dataset.samples.append(
-                (traindir / cls / fname, train_dataset.class_to_idx[cls]))
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     kwargs = dict(batch_size=args.batch_size // args.world_size, num_workers=args.workers, pin_memory=True)

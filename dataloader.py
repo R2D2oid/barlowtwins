@@ -3,7 +3,7 @@ import numpy as np
 import torchvision.datasets as datasets
 
 class NoisyCIFAR10(datasets.CIFAR10):
-    def __init__(self, root, train=True, download=False, transform=None, noise_rate=0.1):
+    def __init__(self, root, train=True, download=False, transform=None, noise_type='sym', noise_rate=0.1):
         super(NoisyCIFAR10, self).__init__(root, train=train, download=download, transform=transform)
         
         if noise_rate <= 0:
@@ -23,12 +23,20 @@ class NoisyCIFAR10(datasets.CIFAR10):
             indeces = np.where(np.array(self.targets) == c)[0]
             noisy_samples_idx = np.random.choice(indeces, n_noisy_per_class, replace=False)            
             
-            # list of alternative class ids to choose from as a noisy target; excludes original class id
-            class_ids = [i for i in range(n_classes) if i!=c]    
-                
-            for idx in noisy_samples_idx:
-                # pick a new class at random as the target (noisy class)
-                self.targets[idx] = random.choice(class_ids)
+            if noise_type == 'sym':
+                # list of alternative class ids to choose from as a noisy target; excludes original class id
+                class_ids = [i for i in range(n_classes) if i!=c]    
 
+                for idx in noisy_samples_idx:
+                    # pick a new class from the remaining 9 classes at random as noisy class for this sample
+                    self.targets[idx] = random.choice(class_ids)
+            elif noise_type == 'asym':
+                for idx in noisy_samples_idx:
+                    # use current_class+1 as the noisy class with prob noise_rate
+                    current_class = self.targets[idx]
+                    self.targets[idx] = np.random.choice([current_class, (current_class+1)%n_classes], p=[1-noise_rate, noise_rate])
+            else:
+                raise ValueError(f'Undefined noise_type: {noise_type}!') 
+                
         return
     

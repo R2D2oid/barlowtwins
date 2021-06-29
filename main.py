@@ -135,6 +135,8 @@ def main_worker(gpu, args):
                            noise_rate = args.noise_rate, 
                            transform = Transform_CIFAR10())
     
+    dataset.dump_(path_='checkpoint/cifar10_noisy.pkl')
+
     print(f'Loaded noisy cifar10 dataset with {args.noise_type} noise and noise-rate={args.noise_rate}')    
     print(f'Loaded noisy cifar10 dataset with {args.noise_type} noise and noise-rate={args.noise_rate}', file=stats_file)
     

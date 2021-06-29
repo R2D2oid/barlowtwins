@@ -126,7 +126,7 @@ def main_worker(gpu, args):
     normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
                                      std=[0.2470, 0.2435, 0.2616])
 
-    train_dataset = datasets.CIFAR10(root ='./data', 
+    full_train_dataset = datasets.CIFAR10(root ='./data', 
                                train = True, 
                                download = True, 
                                transform = transforms.Compose([
@@ -136,16 +136,12 @@ def main_worker(gpu, args):
                                     normalize,
                                 ]))
 
-    # used test set as validation for now. need to adjust this to split train into train/valid
-    val_dataset = datasets.CIFAR10(root ='./data', 
-                           train = False, 
-                           download = True, 
-                           transform = transforms.Compose([
-                            transforms.Resize(32),
-                            transforms.CenterCrop(32),
-                            transforms.ToTensor(),
-                            normalize,
-                        ]))
+    indices = list(range(len(full_train_dataset)))
+    random.seed(42)
+    random.shuffle(indices)
+    train_size = int(0.8*full_train_dataset.__len__())
+    train_dataset = torch.utils.data.Subset(full_train_dataset, indices[:train_size])
+    val_dataset = torch.utils.data.Subset(full_train_dataset, indices[train_size:])
 
     if args.train_percent in {1, 10}:
         train_dataset.samples = []

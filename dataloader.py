@@ -40,3 +40,8 @@ class NoisyCIFAR10(datasets.CIFAR10):
                 
         return
     
+    
+## Usage
+# from dataloader import NoisyCIFAR10
+# noisy_cifar10_trainset = NoisyCIFAR10(root='./data', train=True, download=True, noise_type = 'sym', noise_rate=0.2)
+    

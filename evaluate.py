@@ -278,6 +278,6 @@ def accuracy(output, target, topk=(1,)):
         return res
 
 # python evaluate.py <args.data> <args.pretrained> ...
-# python evaluate.py data checkpoint_sym_noise_1/resnet50.pth --noisy-data-dir checkpoint_sym_noise_1/cifar10_noisy.pkl --checkpoint-dir checkpoint_sym_noise_1/lincls  --lr-classifier 0.3
+# python evaluate.py data checkpoint_noisy_sym_1/resnet50.pth --noisy-data-dir checkpoint_noisy_sym_1/cifar10_noisy.pkl --checkpoint-dir checkpoint_noisy_sym_1/lincls --lr-classifier 0.3 --weights freeze
 if __name__ == '__main__':
     main()

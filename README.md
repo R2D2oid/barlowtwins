@@ -103,7 +103,12 @@ python main.py --data data --workers 4 --batch-size 1024 --epochs 1000 --print-f
 ```
 
 ### Evaluation: Linear Classification
+The following currently evaluates on a validataion subset. 
 ```
 python evaluate.py data checkpoint_noisy_sym_1/resnet50.pth --noisy-data-dir checkpoint_noisy_sym_1/cifar10_noisy.pkl --checkpoint-dir checkpoint_noisy_sym_1/lincls --lr-classifier 0.3 --weights freeze
 ```
 
+Evaluate the classifier model on CIFAR10 Test set
+```
+python evaluate_test.py ...
+```

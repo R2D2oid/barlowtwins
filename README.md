@@ -104,6 +104,6 @@ python main.py --data data --workers 4 --batch-size 1024 --epochs 1000 --print-f
 
 ### Evaluation: Linear Classification
 ```
-python evaluate.py data checkpoint_backup/resnet50.pth --lr-classifier 0.3
+python evaluate.py data checkpoint_noisy_sym_1/resnet50.pth --noisy-data-dir checkpoint_noisy_sym_1/cifar10_noisy.pkl --checkpoint-dir checkpoint_noisy_sym_1/lincls --lr-classifier 0.3 --weights freeze
 ```
 
